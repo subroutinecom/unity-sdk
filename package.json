@@ -1,0 +1,10 @@
+{
+  "name": "com.subroutine.subroutine-sdk",
+  "version": "0.1.0",
+  "displayName": "Subroutine SDK",
+  "description": "Subroutine SDK for Unity",
+  "unity": "2021.3",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.0"
+  }
+}
