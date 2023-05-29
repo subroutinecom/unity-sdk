@@ -1,7 +1,6 @@
 
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Newtonsoft.Json;
@@ -133,6 +132,11 @@ namespace Subroutine.API
 
     public void LoginPlayer(LoginPlayerProps props, Action<LoginPlayerResponse> callback)
     {
+      if (Executor.TestPlayerOverride)
+      {
+        Debug.LogWarning("LoginPlayer failed. TestPlayerAuthToken is set.");
+        return;
+      }
       CoroutineRunner.StartCoroutine(LoginPlayerInternal(new LoginPlayerInternalProps
       {
         PublicKey = props.PublicKey,
@@ -147,12 +151,11 @@ namespace Subroutine.API
 
     public void RegisterPlayer(RegisterPlayerProps props, Action<RegisterPlayerResponse> callback)
     {
-      CoroutineRunner.StartCoroutine(InternalGetIdAndRegisterPlayer(new InternalGetIdAndRegisterPlayerProps { }, callback));
+      CoroutineRunner.StartCoroutine(RegisterPlayerInternal(new RegisterPlayerInternalProps { }, callback));
     }
 
     public class RegisterPlayerInternalProps
     {
-      public string GameId { get; set; }
     }
 
 
@@ -165,7 +168,6 @@ namespace Subroutine.API
         {
           PublicKey = keypair.Public
         },
-        GameId = props.GameId,
         ApiToken = Executor.ApiToken,
       };
 
@@ -186,9 +188,9 @@ namespace Subroutine.API
       };
       www.SetRequestHeader("Content-Type", "application/json");
       www.SetRequestHeader("X-Subroutine-Signature", encodedResult);
-      if (Executor.Namespace != null)
+      if (Executor.InternalNamespace != null)
       {
-        www.SetRequestHeader("X-Subroutine-Namespace", Executor.Namespace);
+        www.SetRequestHeader("X-Subroutine-Namespace", Executor.InternalNamespace);
       }
 
       yield return www.SendWebRequest();
@@ -256,9 +258,9 @@ namespace Subroutine.API
       };
       www.SetRequestHeader("Content-Type", "application/json");
       www.SetRequestHeader("X-Subroutine-Signature", encodedResult);
-      if (Executor.Namespace != null)
+      if (Executor.InternalNamespace != null)
       {
-        www.SetRequestHeader("X-Subroutine-Namespace", Executor.Namespace);
+        www.SetRequestHeader("X-Subroutine-Namespace", Executor.InternalNamespace);
       }
 
       yield return www.SendWebRequest();
@@ -277,7 +279,7 @@ namespace Subroutine.API
       }
       else
       {
-        Executor.JWTToken = responseBody;
+        Executor.UpdateJWTToken(responseBody);
         callback(new LoginPlayerResponse
         {
           JWTToken = responseBody
@@ -285,57 +287,6 @@ namespace Subroutine.API
       }
       www.Dispose();
     }
-
-    public class InternalGetIdAndRegisterPlayerProps { }
-
-    private IEnumerator InternalGetIdAndRegisterPlayer(InternalGetIdAndRegisterPlayerProps props, Action<RegisterPlayerResponse> callback)
-    {
-      String fetchedGameId = null;
-      yield return GetGameId((gameId) =>
-      {
-        fetchedGameId = gameId;
-      });
-
-      if (fetchedGameId == null)
-      {
-        Debug.LogError("Fetched Game ID failed");
-      }
-
-      yield return RegisterPlayerInternal(new RegisterPlayerInternalProps { GameId = fetchedGameId }, callback);
-    }
-
-    private IEnumerator GetGameId(Action<String> callback)
-    {
-      var vars = new Dictionary<string, object>
-      {
-        { "organizationName", Executor.OrganizationName },
-        { "gameName", Executor.GameName }
-      };
-      var query = new GraphQLQuery
-      {
-        OperationName = "GetGameId",
-        Query = @"
-query GetGameId($organizationName: String!, $gameName: String!){
-  getGameId(organizationName:$organizationName, gameName:$gameName)
-}
-                ",
-        Variables = vars
-      };
-
-      return Executor.QueryInternal(
-        query,
-        // rely on default cache configuration
-        cacheConfig: null,
-        (e, resp) =>
-        {
-          if (e == null)
-          {
-            callback(resp.data.getGameId);
-          }
-        });
-    }
-
-
 
     byte[] GeneratePrivatePem(AsymmetricKeyParameter priv)
     {

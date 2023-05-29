@@ -66,33 +66,30 @@ namespace Subroutine.API
     {
       private MonoBehaviour CoroutineRunner { get; set; }
 
-      private string GraphQLUrl { get; set; }
+      private string PlayerAPIUrl { get; set; }
       internal string AuthUrl { get; set; }
 
-      internal string OrganizationName { get; set; }
-      internal string GameName { get; set; }
       internal string ApiToken { get; set; }
-      internal string Namespace { get; set; }
+      internal string InternalNamespace { get; set; }
       internal bool IsDebug { get; set; }
 
-      public string JWTToken { get; set; } = "";
+      public string JWTToken { get; private set; } = "";
+      public bool TestPlayerOverride { get; set; } = false;
 
       public CacheConfig CacheConfig { get; set; }
 
       private Subroutine.API.ICache Cache { get; set; }
 
-      internal Executor(MonoBehaviour coroutineRunner, string graphQLUrl, string authUrl, string organizationName, string gameName, string apiToken, string subroutineNamespace, CacheConfig cacheConfig, ICache cache, bool debug)
+      internal Executor(ClientOptions options)
       {
-        CoroutineRunner = coroutineRunner;
-        GraphQLUrl = graphQLUrl;
-        AuthUrl = authUrl;
-        OrganizationName = organizationName;
-        GameName = gameName;
-        ApiToken = apiToken;
-        Namespace = subroutineNamespace;
-        CacheConfig = cacheConfig;
-        Cache = cache;
-        IsDebug = debug;
+        CoroutineRunner = options.CoroutineRunner;
+        PlayerAPIUrl = options.PlayerApiUrl;
+        AuthUrl = options.AuthenticationUrl;
+        ApiToken = options.GameAPIToken;
+        InternalNamespace = options.InternalSubroutineNamespace;
+        CacheConfig = options.CacheConfig;
+        Cache = options.Cache;
+        IsDebug = options.Debug;
       }
 
       public bool IsLoggedIn
@@ -135,15 +132,15 @@ namespace Subroutine.API
           }
         }
 
-        var www = new UnityWebRequest(GraphQLUrl, "POST")
+        var www = new UnityWebRequest(PlayerAPIUrl, "POST")
         {
           uploadHandler = (UploadHandler)new UploadHandlerRaw(GetBytesForQuery(querySerialized)),
           downloadHandler = (DownloadHandler)new DownloadHandlerBuffer()
         };
         www.SetRequestHeader("Content-Type", "application/json");
-        if (Namespace != null)
+        if (InternalNamespace != null)
         {
-          www.SetRequestHeader("X-Subroutine-Namespace", Namespace);
+          www.SetRequestHeader("X-Subroutine-Namespace", InternalNamespace);
         }
 
         if (JWTToken != "")
@@ -190,7 +187,7 @@ namespace Subroutine.API
 
       private IEnumerator MutationInternal(GraphQLQuery query, OnMutationDelegate callback)
       {
-        var www = new UnityWebRequest(GraphQLUrl, "POST");
+        var www = new UnityWebRequest(PlayerAPIUrl, "POST");
         string querySerialized = query.Serialize();
         if (IsDebug)
         {
@@ -200,9 +197,9 @@ namespace Subroutine.API
         www.uploadHandler = (UploadHandler)new UploadHandlerRaw(GetBytesForQuery(querySerialized));
         www.downloadHandler = (DownloadHandler)new DownloadHandlerBuffer();
         www.SetRequestHeader("Content-Type", "application/json");
-        if (Namespace != null)
+        if (InternalNamespace != null)
         {
-          www.SetRequestHeader("X-Subroutine-Namespace", Namespace);
+          www.SetRequestHeader("X-Subroutine-Namespace", InternalNamespace);
         }
 
         if (JWTToken != "")
@@ -241,6 +238,19 @@ namespace Subroutine.API
       public void ResetJWTToken()
       {
         JWTToken = "";
+        TestPlayerOverride = false;
+      }
+
+      public void UpdateJWTToken(String newToken)
+      {
+        if (TestPlayerOverride)
+        {
+          Debug.LogWarning("Cannot update JWT token with test player override in place.");
+        }
+        else
+        {
+          JWTToken = newToken;
+        }
       }
 
     }

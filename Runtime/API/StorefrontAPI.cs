@@ -1,7 +1,6 @@
 
 using System;
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace Subroutine.API
 {
@@ -10,10 +9,12 @@ namespace Subroutine.API
     public string OfferingId { get; set; }
   }
 
-  public class GetOfferingsByTagProps : BaseQueryProps
+  public class GetOfferingsProps : BaseQueryProps
   {
-    public int Count { get; set; }
-    public string WithTag { get; set; } = null;
+    public int First { get; set; }
+    public string After { get; set; } = null;
+
+    public GraphQLCodeGen.Types.OfferingFiltersInput Filters { get; set; } = null;
   }
 
   public class StorefrontAPI
@@ -30,12 +31,12 @@ namespace Subroutine.API
     }
 
     /// Fetches all offerings with tag, tag is optional. Returns connection.
-    public void GetOfferingsByTag(GetOfferingsByTagProps props, Action<GetOfferingsResponse> callback)
+    public void GetOfferings(GetOfferingsProps props, Action<GetOfferingsResponse> callback)
     {
       Executor.Query(new GraphQLQuery
       {
         Query = @"
-query GetOfferings($offeringTag: Tag, $count: Int!) {
+query GetOfferings($filters: OfferingFiltersInput, $first: Int!, $after: String) {
   player {
     __typename
     id
@@ -44,7 +45,7 @@ query GetOfferings($offeringTag: Tag, $count: Int!) {
       __typename
       id
 
-      offerings(first: $count, filters: { tag: $offeringTag }) {
+      offerings(first: $first, after: $after, filters: $filters) {
         edges {
           cursor
           node {
@@ -62,8 +63,9 @@ query GetOfferings($offeringTag: Tag, $count: Int!) {
 }
         ",
         Variables = new Dictionary<string, object> {
-          {"offeringTag", props.WithTag},
-          {"count", props.Count},
+          {"filters", props.Filters},
+          {"first", props.First},
+          {"after", props.After},
         }
       }, props.CacheConfig, (exception, response) =>
       {
@@ -78,14 +80,14 @@ query GetOfferings($offeringTag: Tag, $count: Int!) {
 
     public void BuyOffering(BuyOfferingProps props, Action<BuyOfferingResponse> callback)
     {
-      String transactionId = System.Guid.NewGuid().ToString();
+      String idempotencyToken = System.Guid.NewGuid().ToString();
       Executor.Mutation(new GraphQLQuery
       {
 
         Query = @"
-mutation BuyOffering($offerId: NodeRef!, $transactionId: String!) {
+mutation BuyOffering($offerId: NodeRef!, $idempotencyToken: String!) {
   buyOffering(
-    input: { offerId: $offerId, clientTransactionId: $transactionId }
+    input: { offerId: $offerId, idempotencyToken: $idempotencyToken }
   ) {
     id
   }
@@ -93,7 +95,7 @@ mutation BuyOffering($offerId: NodeRef!, $transactionId: String!) {
 ",
         Variables = new Dictionary<string, object> {
                                     {"offerId", props.OfferingId},
-                                    {"transactionId", transactionId}
+                                    {"idempotencyToken", idempotencyToken}
                                 }
       }, (exception, response) =>
       {

@@ -185,29 +185,6 @@ namespace GraphQLCodeGen {
     public class AssetDefinition {
       #region members
       /// <summary>
-      /// If the object is vended, the asset is composable and instances of
-      /// it will be composable.
-      /// </summary>
-      [JsonProperty("asComposable")]
-      public ComposableProperties asComposable { get; set; }
-    
-      /// <summary>
-      /// Returns null if this asset type cannot be hold as fungible holding.
-      /// Otherwise vends an object that describes properties only related
-      /// to fungible assets.
-      /// </summary>
-      [JsonProperty("asFungible")]
-      public FungibleProperties asFungible { get; set; }
-    
-      /// <summary>
-      /// Returns null if this asset type cannot be hold as unique holding.
-      /// Otherwise vends an object that describes properties only related
-      /// to unique assets.
-      /// </summary>
-      [JsonProperty("asUnique")]
-      public UniqueProperties asUnique { get; set; }
-    
-      /// <summary>
       /// Vends current holding of this asset for the player querying.
       /// </summary>
       [JsonProperty("assetHolding")]
@@ -218,6 +195,13 @@ namespace GraphQLCodeGen {
       /// </summary>
       [JsonProperty("cap")]
       public int? cap { get; set; }
+    
+      /// <summary>
+      /// If the object is vended, the asset is composable and instances of
+      /// it will be composable.
+      /// </summary>
+      [JsonProperty("composableProperties")]
+      public ComposableProperties composableProperties { get; set; }
     
       /// <summary>
       /// Additional Asset's description.
@@ -231,6 +215,14 @@ namespace GraphQLCodeGen {
       /// </summary>
       [JsonProperty("developerAssetId")]
       public string developerAssetId { get; set; }
+    
+      /// <summary>
+      /// Returns null if this asset type cannot be hold as fungible holding.
+      /// Otherwise vends an object that describes properties only related
+      /// to fungible assets.
+      /// </summary>
+      [JsonProperty("fungibleProperties")]
+      public FungibleProperties fungibleProperties { get; set; }
     
       /// <summary>
       /// Game this UniqueAssetDefinition belongs to.
@@ -271,6 +263,14 @@ namespace GraphQLCodeGen {
       /// </summary>
       [JsonProperty("tags")]
       public List<string> tags { get; set; }
+    
+      /// <summary>
+      /// Returns null if this asset type cannot be hold as unique holding.
+      /// Otherwise vends an object that describes properties only related
+      /// to unique assets.
+      /// </summary>
+      [JsonProperty("uniqueProperties")]
+      public UniqueProperties uniqueProperties { get; set; }
       #endregion
     }
     #endregion
@@ -308,6 +308,8 @@ namespace GraphQLCodeGen {
       [System.ComponentModel.DataAnnotations.Required]
       [JsonRequired]
       public List<AssetType> assetTypes { get; set; }
+    
+      public bool? isTradable { get; set; }
     
       /// <summary>
       /// If present, limit the connection only to assets that have this tag
@@ -366,7 +368,7 @@ namespace GraphQLCodeGen {
       #region members
       [System.ComponentModel.DataAnnotations.Required]
       [JsonRequired]
-      public string assetId { get; set; }
+      public string assetDefinitionId { get; set; }
     
       [System.ComponentModel.DataAnnotations.Required]
       [JsonRequired]
@@ -572,9 +574,6 @@ namespace GraphQLCodeGen {
       [JsonProperty("ageInMilliseconds")]
       public int ageInMilliseconds { get; set; }
     
-      [JsonProperty("asComposable")]
-      public ComposableProperties asComposable { get; set; }
-    
       [JsonProperty("assetDefinition")]
       public AssetDefinition assetDefinition { get; set; }
     
@@ -584,6 +583,9 @@ namespace GraphQLCodeGen {
       /// </summary>
       [JsonProperty("composable")]
       public bool composable { get; set; }
+    
+      [JsonProperty("composableProperties")]
+      public ComposableProperties composableProperties { get; set; }
     
       /// <summary>
       /// Marks whether this asset has already been consumed (if it's consumable).
@@ -706,7 +708,7 @@ namespace GraphQLCodeGen {
       #region members
       [System.ComponentModel.DataAnnotations.Required]
       [JsonRequired]
-      public string assetId { get; set; }
+      public string assetDefinitionId { get; set; }
     
       public string fungibleQuantity { get; set; }
     
@@ -1188,13 +1190,13 @@ namespace GraphQLCodeGen {
     public class BuyOfferingInput {
       #region members
       /// <summary>
-      /// clientTransactionId is an idempotency token of this transaction.
+      /// idempotencyToken is an idempotency token of this transaction.
       /// It is used by the backend to ensure that client doesn't accidentally submit multiple
       /// transactions.
       /// </summary>
       [System.ComponentModel.DataAnnotations.Required]
       [JsonRequired]
-      public string clientTransactionId { get; set; }
+      public string idempotencyToken { get; set; }
     
       /// <summary>
       /// An optional directives specifying which assets must be used as part of this
@@ -1377,7 +1379,7 @@ namespace GraphQLCodeGen {
       /// </summary>
       [System.ComponentModel.DataAnnotations.Required]
       [JsonRequired]
-      public string clientTransactionId { get; set; }
+      public string idempotencyToken { get; set; }
       #endregion
     
       #region methods
@@ -1461,7 +1463,7 @@ namespace GraphQLCodeGen {
       /// </summary>
       [System.ComponentModel.DataAnnotations.Required]
       [JsonRequired]
-      public string assetId { get; set; }
+      public string assetDefinitionId { get; set; }
     
       /// <summary>
       /// Exchange on which the order should be posted.
@@ -1918,7 +1920,7 @@ namespace GraphQLCodeGen {
       /// <summary>
       /// Id of an asset that the orders should be limited to.
       /// </summary>
-      public string assetId { get; set; }
+      public string assetDefinitionId { get; set; }
     
       /// <summary>
       /// Id of an Exchange that the orders should be limited to.
@@ -2260,6 +2262,13 @@ namespace GraphQLCodeGen {
       public string description { get; set; }
     
       /// <summary>
+      /// Additional ID, assigned by an Organization, can be used to help managing Assets
+      /// on the Game side.
+      /// </summary>
+      [JsonProperty("developerAssetId")]
+      public string developerAssetId { get; set; }
+    
+      /// <summary>
       /// Is the offer manually disabled?
       /// </summary>
       [JsonProperty("disabled")]
@@ -2305,6 +2314,13 @@ namespace GraphQLCodeGen {
       /// </summary>
       [JsonProperty("purchaseCap")]
       public int? purchaseCap { get; set; }
+    
+      /// <summary>
+      /// Purchase Cap Identifier for the offering. Can be shared amongst
+      /// multiple offerings if needed.
+      /// </summary>
+      [JsonProperty("purchaseCapIdentifier")]
+      public string purchaseCapIdentifier { get; set; }
     
       /// <summary>
       /// List of tags associated with the Offering. Can be used
@@ -2373,6 +2389,12 @@ namespace GraphQLCodeGen {
     /// </summary>
     public class OfferingFiltersInput {
       #region members
+      /// <summary>
+      /// The connection will normally return only offering that the player didn't cross the purchase cap for.
+      /// If this is set to true, the connection will return all offerings.
+      /// </summary>
+      public bool? includeOffersOverCap { get; set; }
+    
       /// <summary>
       /// A string that must be part of the offering's name
       /// </summary>
@@ -2601,6 +2623,9 @@ namespace GraphQLCodeGen {
       [JsonProperty("id")]
       public string id { get; set; }
     
+      [JsonProperty("isTestPlayer")]
+      public bool isTestPlayer { get; set; }
+    
       /// <summary>
       /// Returns Player's exchange order with given ID if it exists.
       /// </summary>
@@ -2619,6 +2644,13 @@ namespace GraphQLCodeGen {
       /// </summary>
       [JsonProperty("transactions")]
       public TransactionLogConnection transactions { get; set; }
+    
+      /// <summary>
+      /// A player may have username associated with them. Note that this is not required
+      /// and does not guarantee uniqueness.
+      /// </summary>
+      [JsonProperty("username")]
+      public string username { get; set; }
     
       [JsonProperty("winningAuctionBids")]
       public AuctionBidConnection winningAuctionBids { get; set; }
