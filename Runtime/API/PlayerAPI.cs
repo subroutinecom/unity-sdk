@@ -4,6 +4,58 @@ using System.Collections.Generic;
 
 namespace Subroutine.API
 {
+
+  public interface IAssetHoldingInput
+  {
+    GraphQLCodeGen.Types.AssetHoldingInput convertIntoGraphQLType();
+  }
+
+  public abstract class AssetHoldingInput
+  {
+    public class Fungible : IAssetHoldingInput
+    {
+      public string AssetDefinitionId { get; }
+      public string Quantity { get; }
+
+      public Fungible(string assetDefinitionId, string quantity)
+      {
+        AssetDefinitionId = assetDefinitionId;
+        Quantity = quantity;
+      }
+
+      public GraphQLCodeGen.Types.AssetHoldingInput convertIntoGraphQLType()
+      {
+        return new GraphQLCodeGen.Types.AssetHoldingInput
+        {
+          fungible = new GraphQLCodeGen.Types.AssetFungibleHoldingInput
+          {
+            assetDefinitionId = AssetDefinitionId,
+            quantity = Quantity
+          }
+        };
+      }
+    }
+
+    public class Instance : IAssetHoldingInput
+    {
+      public string AssetInstanceId { get; }
+
+      public Instance(string assetInstanceId)
+      {
+        AssetInstanceId = assetInstanceId;
+      }
+
+      public GraphQLCodeGen.Types.AssetHoldingInput convertIntoGraphQLType()
+      {
+        return new GraphQLCodeGen.Types.AssetHoldingInput
+        {
+          instance = AssetInstanceId
+        };
+      }
+    }
+
+  }
+
   public class PlayerAPI
   {
 
@@ -23,16 +75,17 @@ namespace Subroutine.API
     {
       public string AssetDefinitionId { get; set; }
     }
-    /// Fetches single fungible asset holding.
+
+    /// Use to fetch asset holding for a specific Asset Definition.
     public void GetAssetHolding(GetAssetHoldingProps props, Action<GetAssetHoldingResponse> callback)
     {
       Executor.Query(new GraphQLQuery
       {
         Query = GameAPI.AssetDefinitionFragment + @"
 
-query PlayerAssetHolding($assetId: AssetRef!) {
+query PlayerAssetHolding($assetDefinitionId: AssetRef!) {
   player {
-    assetHolding(assetId: $assetId) {
+    assetHolding(assetDefinitionId: $assetDefinitionId) {
       assetDefinition {
         ...AssetDefinitionFragment
       }
@@ -42,7 +95,7 @@ query PlayerAssetHolding($assetId: AssetRef!) {
 }
 ",
         Variables = new Dictionary<string, object> {
-          {"assetId", props.AssetDefinitionId},
+          {"assetDefinitionId", props.AssetDefinitionId},
         }
       },
       props.CacheConfig,
@@ -56,11 +109,13 @@ query PlayerAssetHolding($assetId: AssetRef!) {
       });
     }
 
-    public class GetInventoryProps : BaseQueryProps
+    public class GetAssetHoldingsProps : BaseQueryProps
     {
       public GraphQLCodeGen.Types.AssetDefinitionConnectionFilters Filters { get; set; }
+      public int First { get; set; } = 100;
+      public string After { get; set; } = null;
 
-      public GetInventoryProps()
+      public GetAssetHoldingsProps()
       {
         Filters = new GraphQLCodeGen.Types.AssetDefinitionConnectionFilters
         {
@@ -75,21 +130,22 @@ query PlayerAssetHolding($assetId: AssetRef!) {
       }
     }
 
-    public class GetInventoryResponse : SubroutineResponse
+    public class GetAssetHoldingsResponse : SubroutineResponse
     {
       public List<GraphQLCodeGen.Types.AssetHoldingEdge> Holdings { get; set; }
     }
 
-    /// Returns all fungible assets that belong to the player
-    public void GetInventory(GetInventoryProps props, Action<GetInventoryResponse> callback)
+    /// Use that to fetch asset holdings across multiple asset definitions. Allows
+    /// for filtering.
+    public void GetAssetHoldings(GetAssetHoldingsProps props, Action<GetAssetHoldingsResponse> callback)
     {
       Executor.Query(new GraphQLQuery
       {
         Query = GameAPI.AssetDefinitionFragment + @"
 
-query PlayerInventory($assetHoldingFilters: AssetDefinitionConnectionFilters!) {
+query PlayerInventory($first: Int!, $after: String, $assetHoldingFilters: AssetDefinitionConnectionFilters!) {
   player {
-    assetHoldings(first: 100, filters: $assetHoldingFilters) {
+    assetHoldings(first: $first, after: $after, filters: $assetHoldingFilters) {
       edges {
         node {
           assetDefinition {
@@ -104,14 +160,54 @@ query PlayerInventory($assetHoldingFilters: AssetDefinitionConnectionFilters!) {
 ",
         Variables = new Dictionary<string, object> {
           {"assetHoldingFilters", props.Filters},
+          {"first", props.First},
+          {"after", props.After},
         }
 
       },
       props.CacheConfig,
       (exception, response) =>
       {
-        callback(new GetInventoryResponse { Error = exception, Holdings = response.data.player.assetHoldings.edges });
+        callback(new GetAssetHoldingsResponse { Error = exception, Holdings = response.data.player.assetHoldings.edges });
       });
+    }
+
+    public class ConsumeAssetProps : BaseQueryProps
+    {
+      public IAssetHoldingInput Asset { get; set; }
+    }
+
+    public class ConsumeAssetResponse : SubroutineResponse
+    {
+      public string TransactionId { get; set; }
+    }
+
+    public void ConsumeAsset(ConsumeAssetProps props, Action<ConsumeAssetResponse> callback)
+    {
+      String idempotencyToken = System.Guid.NewGuid().ToString();
+
+      GraphQLCodeGen.Types.AssetHoldingInput asset = props.Asset.convertIntoGraphQLType();
+
+      Executor.Mutation(new GraphQLQuery
+      {
+        Query = @"
+mutation ConsumeAsset($asset: AssetHoldingInput!, $idempotencyToken: String!) {
+  consumeAsset(input: { asset: $asset, idempotencyToken: $idempotencyToken }) {
+    id
+  }
+}
+",
+        Variables = new Dictionary<string, object>
+        {
+          {"asset", asset},
+          {"idempotencyToken", idempotencyToken},
+        }
+
+      },
+            (exception, response) =>
+            {
+              callback(new ConsumeAssetResponse { Error = exception, TransactionId = response.data.consumeAsset.id });
+            });
     }
 
   }

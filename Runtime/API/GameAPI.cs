@@ -23,7 +23,7 @@ fragment AssetDefinitionFragment on AssetDefinition {
   tags
   isConsumable
   isTradable
-  asFungible {
+  fungibleProperties {
     decimalPlaces
   }
 }
@@ -31,7 +31,7 @@ fragment AssetDefinitionFragment on AssetDefinition {
 
     public class GetAssetDefinitionProps : BaseQueryProps
     {
-      public string AssetId { get; set; }
+      public string AssetDefinitionId { get; set; }
     }
     public class GetAssetDefinitionResponse : SubroutineResponse
     {
@@ -45,10 +45,10 @@ fragment AssetDefinitionFragment on AssetDefinition {
           OperationName = "GetAssetDefinition",
           Query = AssetDefinitionFragment + @"
           
-query GetAssetDefinition($assetId: AssetRef!) {
+query GetAssetDefinition($assetDefinitionId: AssetRef!) {
   player {
     game {
-      assetDefinition(assetId: $assetId) {
+      assetDefinition(assetDefinitionId: $assetDefinitionId) {
         ...AssetDefinitionFragment
       }
     }
@@ -56,7 +56,7 @@ query GetAssetDefinition($assetId: AssetRef!) {
 }
 ",
           Variables = new Dictionary<string, object> {
-            {"assetId", props.AssetId}
+            {"assetDefinitionId", props.AssetDefinitionId}
           }
         },
         cacheConfig: props.CacheConfig,

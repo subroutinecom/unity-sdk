@@ -1,9 +1,8 @@
 
-// API Class provides helpers for accessing Overchain API, but is not required to use.
-// You can continue using OverchainExecutor directly to execute more tailored queries.
+// API Class provides helpers for accessing Subroutine API, but is not required to use.
+// You can continue using SubroutineExecutor directly to execute more tailored queries.
 using System;
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace Subroutine.API
 {
@@ -33,7 +32,7 @@ namespace Subroutine.API
     {
       GetExchanges(new GetExchangesProps
       {
-        Count = 1,
+        First = 1,
         CacheConfig = props.CacheConfig,
       }, (response) =>
       {
@@ -73,9 +72,10 @@ fragment OrderFragment on ExchangeOrder {
 
     public class GetExchangesProps : BaseQueryProps
     {
-      public Exception Error { get; set; }
-      public int Count { get; set; }
-      public string AfterCursor { get; set; } = null;
+      /// Number of results that should be fetched in the connection.
+      public int First { get; set; }
+      /// Cursor for item after which the fetching should resume.
+      public string After { get; set; } = null;
       public string NameFilter { get; set; } = null;
       public string WithTag { get; set; } = null;
     }
@@ -91,7 +91,7 @@ fragment OrderFragment on ExchangeOrder {
             OperationName = "GetExchanges",
             Query = @"
 query GetExchanges(
-  $count: Int!
+  $first: Int!
   $after: String
   $nameFilter: String
   $tag: Tag
@@ -121,8 +121,8 @@ query GetExchanges(
   }
 }",
             Variables = new Dictionary<string, object> {
-                        {"count", props.Count},
-                        {"afterCursor", props.AfterCursor},
+                        {"first", props.First},
+                        {"after", props.After},
                         {"nameFilter", props.NameFilter},
                         {"tag", props.WithTag}
               },
@@ -147,7 +147,7 @@ query GetExchanges(
     public class CreateOrderProps
     {
       public string Exchange { get; set; }
-      public string ItemId { get; set; }
+      public string AssetDefinitionId { get; set; }
       public GraphQLCodeGen.Types.OrderSide OrderSide { get; set; }
       public GraphQLCodeGen.Types.OrderTypeInput OrderType { get; set; }
       public GraphQLCodeGen.Types.OrderExpiration Expiration { get; set; }
@@ -164,7 +164,7 @@ query GetExchanges(
     {
       var input = new GraphQLCodeGen.Types.CreateOrderInput
       {
-        assetId = props.ItemId,
+        assetDefinitionId = props.AssetDefinitionId,
         quantity = props.Quantity,
         exchangeId = props.Exchange,
         orderType = props.OrderType,
@@ -292,11 +292,11 @@ query GetOrder($orderId: NodeRef!) {
           {
             OperationName = "GetPriceSpreadForItem",
             Query = @"
-query GetPriceSpreadForItem($exchangeId: NodeRef!, $assetId: AssetRef!){
+query GetPriceSpreadForItem($exchangeId: NodeRef!, $assetDefinitionId: AssetRef!){
   player {
     game{
       exchange(exchangeId: $exchangeId) {
-        priceSpreadForAsset(assetId:$assetId) {
+        priceSpreadForAsset(assetDefinitionId:$assetDefinitionId) {
           ask
           bid
         }
@@ -306,7 +306,7 @@ query GetPriceSpreadForItem($exchangeId: NodeRef!, $assetId: AssetRef!){
 }",
             Variables = new Dictionary<string, object> {
                         {"exchangeId", props.Exchange},
-                        {"assetId", props.ItemId},
+                        {"assetDefinitionId", props.ItemId},
               }
           },
           cacheConfig: props.CacheConfig ?? new CacheConfig { Policy = CachePolicy.NoCache },
@@ -321,38 +321,52 @@ query GetPriceSpreadForItem($exchangeId: NodeRef!, $assetId: AssetRef!){
       );
     }
 
-    public class OpenOrdersProps : BaseQueryProps
+    public class GetOrdersProps : BaseQueryProps
     {
-      public string Exchange { get; set; }
-      public int Count { get; set; }
-      public string ForAsset { get; set; } = null;
+      public int First { get; set; }
       public string After { get; set; } = null;
+
+      /// Use filters to decide which types of orders you'd wanna fetch.
+      /// Allows to filter to specific exchange or specific asset definition type.
+      /// Allows filtering to specific order types. If order types aren't defined,
+      /// by default OPEN and ACKNOWLEDGED orders will be fetched.
+      ///
+      /// If you'd like to fetch the past orders, you can do so by setting Filters.status to 
+      /// {GraphQLCodeGen.Types.OrderStatus.CLOSED, GraphQLCodeGen.Types.OrderStatus.CANCELLED}
+      public GraphQLCodeGen.Types.ExchangeOrderFilters Filters { get; set; } = null;
     }
     public class OrdersConnectionResponse : SubroutineResponse
     {
       public GraphQLCodeGen.Types.ExchangeOrderConnection OrderConnection { get; set; }
     }
-    public void OpenOrders(OpenOrdersProps props, Action<OrdersConnectionResponse> callback)
+    public void GetOrders(GetOrdersProps props, Action<OrdersConnectionResponse> callback)
     {
+      GraphQLCodeGen.Types.ExchangeOrderFilters filters = null;
+      if (props.Filters != null)
+      {
+        filters = props.Filters;
+      }
+      else
+      {
+        filters = new GraphQLCodeGen.Types.ExchangeOrderFilters
+        {
+          status = { GraphQLCodeGen.Types.OrderStatus.ACKNOWLEDGED, GraphQLCodeGen.Types.OrderStatus.OPEN },
+        };
+      }
       Executor.Query(
           new GraphQLQuery
           {
-            OperationName = "OpenOrders",
+            OperationName = "GetOrders",
             Query = OrderFragment + @"
 
-query OpenOrders(
-  $exchange: NodeRef!
+query GetOrders(
+  $filters: ExchangeOrderFilters!,
   $first: Int!
   $after: String
-  $assetId: AssetRef
 ) {
   player {
     orders(
-      filters: {
-        exchangeId: $exchange
-        status: [OPEN, ACKNOWLEDGED]
-        assetId: $assetId
-      }
+      filters: $filters,
       first: $first
       after: $after
     ) {
@@ -367,10 +381,9 @@ query OpenOrders(
 }
 ",
             Variables = new Dictionary<string, object> {
-                        {"exchange", props.Exchange},
-                        {"first", props.Count},
+                        {"first", props.First},
                         {"after", props.After},
-                        {"assetId", props.ForAsset},
+                        {"filters", filters},
               }
           },
           // Fetching order status should by default not use any cache
@@ -386,55 +399,5 @@ query OpenOrders(
       );
     }
 
-    public class ClosedOrdersProps : BaseQueryProps
-    {
-      public string Exchange { get; set; }
-      public int Count { get; set; }
-      public string After { get; set; } = null;
-    }
-
-    public void ClosedOrders(ClosedOrdersProps props, Action<OrdersConnectionResponse> callback)
-    {
-      Executor.Query(
-          new GraphQLQuery
-          {
-            OperationName = "ClosedOrders",
-            Query = OrderFragment + @"
-{{0}}
-
-query ClosedOrders($exchange: NodeRef!, $first: Int!, $after: String) {
-  player {
-    orders(
-      filters: { exchangeId: $exchange, status: [CLOSED, CANCELLED] }
-      first: $first
-      after: $after
-    ) {
-      edges {
-        cursor
-        node {
-          ...OrderFragment
-        }
-      }
-    }
-  }
-}
-",
-            Variables = new Dictionary<string, object> {
-                        {"exchange", props.Exchange},
-                        {"first", props.Count},
-                        {"after", props.After},
-              }
-          },
-          cacheConfig: props.CacheConfig ?? new CacheConfig { Policy = CachePolicy.NoCache },
-          (exception, response) =>
-          {
-            callback(new OrdersConnectionResponse
-            {
-              Error = exception,
-              OrderConnection = response?.data?.player?.orders
-            });
-          }
-      );
-    }
   }
 }
