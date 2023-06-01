@@ -353,6 +353,12 @@ query GetPriceSpreadForItem($exchangeId: NodeRef!, $assetDefinitionId: AssetRef!
           status = { GraphQLCodeGen.Types.OrderStatus.ACKNOWLEDGED, GraphQLCodeGen.Types.OrderStatus.OPEN },
         };
       }
+
+      if (filters.status == null || filters.status.Count < 1)
+      {
+        filters.status = new List<GraphQLCodeGen.Types.OrderStatus> { GraphQLCodeGen.Types.OrderStatus.ACKNOWLEDGED, GraphQLCodeGen.Types.OrderStatus.OPEN };
+      }
+
       Executor.Query(
           new GraphQLQuery
           {
